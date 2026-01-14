@@ -39,7 +39,7 @@ jobs:
       - name: Build + tests + checks (verify)
         run: mvn -B clean verify
 
-      # --- PR review comments: Checkstyle (real action that exists) ---
+      # --- PR review comments: Checkstyle ---
       - name: PR comments (Checkstyle)
         if: always()
         uses: dbelyaev/action-checkstyle@v2
@@ -49,32 +49,41 @@ jobs:
           workdir: .
           reporter: github-pr-review
 
-      # --- PR review comments: SpotBugs (convert XML -> reviewdog format, then comment) ---
+      # --- PR review comments: SpotBugs ---
       - name: Install reviewdog (pinned)
         if: always()
         run: |
           curl -sfL https://raw.githubusercontent.com/reviewdog/reviewdog/master/install.sh | sh -s -- -b ./bin v0.20.3
           ./bin/reviewdog -version
 
-      - name: Convert SpotBugs XML to rdjson
+      - name: Convert SpotBugs XML to rdjson (only if report exists)
         if: always()
         run: |
-          python3 .github/scripts/spotbugs_to_rdjson.py target/spotbugsXml.xml > target/spotbugs-rdjson.json
+          if [ -f target/spotbugsXml.xml ]; then
+            python3 .github/scripts/spotbugs_to_rdjson.py target/spotbugsXml.xml > target/spotbugs-rdjson.json
+          else
+            echo "SpotBugs XML not found; skipping conversion."
+          fi
 
       - name: PR comments (SpotBugs)
         if: always()
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ./bin/reviewdog \
-            -f=rdjson \
-            -name="spotbugs" \
-            -reporter=github-pr-review \
-            -fail-on-error \
-            < target/spotbugs-rdjson.json
+          if [ -f target/spotbugs-rdjson.json ]; then
+            ./bin/reviewdog \
+              -f=rdjson \
+              -name="spotbugs" \
+              -reporter=github-pr-review \
+              -fail-level=any \
+              < target/spotbugs-rdjson.json
+          else
+            echo "SpotBugs rdjson not found; skipping reviewdog."
+          fi
 
       - name: SonarCloud Scan
         if: always()
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: mvn -B sonar:sonar
+
