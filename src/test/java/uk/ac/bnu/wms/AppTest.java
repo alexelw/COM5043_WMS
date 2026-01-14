@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 class AppTest {
 
   @Test
-void appShouldPassBasicTest() {
+  void appShouldPassBasicTest() {
     assertTrue(true);
   }
 }
