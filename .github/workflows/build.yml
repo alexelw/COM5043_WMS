@@ -1,4 +1,4 @@
-name: CI + SonarCloud
+name: CI + SonarCloud + Reviewdog
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build, test, check, and analyze
+    name: Build, test, check, analyze, and comment
     runs-on: ubuntu-latest
 
     steps:
@@ -36,7 +36,18 @@ jobs:
       - name: Build + tests + checks (verify)
         run: mvn -B clean verify
 
-      - name: SonarCloud Scan
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: mvn -B sonar:sonar
+      # PR review comments (run even if verify fails)
+      - name: Reviewdog (Checkstyle PR comments)
+        if: always()
+        uses: reviewdog/action-checkstyle@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          checkstyle_input_file: target/checkstyle-result.xml
+          reporter: github-pr-review
+          fail_on_error: true
+
+      - name: Reviewdog (SpotBugs PR comments)
+        if: always()
+        uses: reviewdog/action-spotbugs@v1
+        with:
+          github_token: ${_
