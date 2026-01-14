@@ -1,4 +1,4 @@
-name: CI + SonarCloud + Reviewdog
+name: CI + SonarCloud + PR Comments
 
 on:
   push:
@@ -6,9 +6,12 @@ on:
   pull_request:
     types: [ opened, synchronize, reopened ]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   build:
-    name: Build, test, check, analyze, and comment
     runs-on: ubuntu-latest
 
     steps:
@@ -36,18 +39,37 @@ jobs:
       - name: Build + tests + checks (verify)
         run: mvn -B clean verify
 
-      # PR review comments (run even if verify fails)
-      - name: Reviewdog (Checkstyle PR comments)
+      # --- PR review comments: Checkstyle (real action that exists) ---
+      - name: PR comments (Checkstyle)
         if: always()
-        uses: reviewdog/action-checkstyle@v1
+        uses: dbelyaev/action-checkstyle@v2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          checkstyle_input_file: target/checkstyle-result.xml
+          checkstyle_config: checkstyle.xml
+          workdir: .
           reporter: github-pr-review
-          fail_on_error: true
 
-      - name: Reviewdog (SpotBugs PR comments)
+      # --- PR review comments: SpotBugs (convert XML -> reviewdog format, then comment) ---
+      - name: Install reviewdog (pinned)
         if: always()
-        uses: reviewdog/action-spotbugs@v1
-        with:
-          github_token: ${_
+        run: |
+          curl -sfL https://raw.githubusercontent.com/reviewdog/reviewdog/master/install.sh | sh -s -- -b ./bin v0.20.3
+          ./bin/reviewdog -version
+
+      - name: Convert SpotBugs XML to rdjson
+        if: always()
+        run: |
+          python3 .github/scripts/spotbugs_to_rdjson.py target/spotbugsXml.xml > target/spotbugs-rdjson.json
+
+      - name: PR comments (SpotBugs)
+        if: always()
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./bin/reviewdog -f=rdjson -name="spotbugs" -reporter=github-pr-review -fail-on-error < target/spotbugs-rdjson.json
+
+      - name: SonarCloud Scan
+        if: always()
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: mvn -B sonar:sonar
