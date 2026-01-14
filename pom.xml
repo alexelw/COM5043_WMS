@@ -1,0 +1,166 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>uk.ac.bnu.wms</groupId>
+  <artifactId>COM5043_WMS</artifactId>
+  <version>1.0.0</version>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+    <junit.version>5.10.2</junit.version>
+    <spotless.version>2.44.0</spotless.version>
+    <jacoco.version>0.8.12</jacoco.version>
+    <spotbugs.version>4.8.6.2</spotbugs.version>
+    <sonar.maven.version>3.10.0.2594</sonar.maven.version>
+
+    <!-- SonarCloud values -->
+    <sonar.organization>alexelw</sonar.organization>
+    <sonar.projectKey>alexelw_COM5043_WMS</sonar.projectKey>
+    <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+
+    <!-- JaCoCo XML path for Sonar -->
+    <sonar.coverage.jacoco.xmlReportPaths>
+      target/site/jacoco/jacoco.xml
+    </sonar.coverage.jacoco.xmlReportPaths>
+  </properties>
+
+  <dependencies>
+    <!-- JUnit 5 -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- Compile with Java 17 -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.11.0</version>
+        <configuration>
+          <release>${maven.compiler.release}</release>
+        </configuration>
+      </plugin>
+
+      <!-- Run JUnit 5 tests -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+      </plugin>
+
+      <!-- JaCoCo: HTML + XML report (verify phase ensures it exists for Sonar) -->
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>${jacoco.version}</version>
+        <executions>
+          <execution>
+            <id>prepare-agent</id>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>report</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>report</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Formatting (Prettier-equivalent for Java) -->
+      <plugin>
+        <groupId>com.diffplug.spotless</groupId>
+        <artifactId>spotless-maven-plugin</artifactId>
+        <version>${spotless.version}</version>
+        <configuration>
+          <java>
+            <googleJavaFormat />
+          </java>
+        </configuration>
+      </plugin>
+
+      <!-- Checkstyle (and output XML for reviewdog) -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-checkstyle-plugin</artifactId>
+        <version>3.3.1</version>
+        <configuration>
+          <configLocation>checkstyle.xml</configLocation>
+          <failOnViolation>true</failOnViolation>
+          <consoleOutput>true</consoleOutput>
+
+          <!-- reviewdog needs this file -->
+          <outputFileFormat>xml</outputFileFormat>
+          <outputFile>${project.build.directory}/checkstyle-result.xml</outputFile>
+        </configuration>
+        <dependencies>
+          <!-- Pin engine version and exclude legacy google-collections -->
+          <dependency>
+            <groupId>com.puppycrawl.tools</groupId>
+            <artifactId>checkstyle</artifactId>
+            <version>10.12.7</version>
+            <exclusions>
+              <exclusion>
+                <groupId>com.google.collections</groupId>
+                <artifactId>google-collections</artifactId>
+              </exclusion>
+            </exclusions>
+          </dependency>
+        </dependencies>
+        <executions>
+          <execution>
+            <phase>verify</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- SpotBugs (and output XML for reviewdog) -->
+      <plugin>
+        <groupId>com.github.spotbugs</groupId>
+        <artifactId>spotbugs-maven-plugin</artifactId>
+        <version>${spotbugs.version}</version>
+
+        <configuration>
+          <xmlOutput>true</xmlOutput>
+          <outputDirectory>${project.build.directory}</outputDirectory>
+          <spotbugsXmlOutputFilename>spotbugsXml.xml</spotbugsXmlOutputFilename>
+        </configuration>
+
+        <executions>
+          <execution>
+            <phase>verify</phase>
+            <goals>
+              <goal>spotbugs</goal>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Sonar Maven plugin -->
+      <plugin>
+        <groupId>org.sonarsource.scanner.maven</groupId>
+        <artifactId>sonar-maven-plugin</artifactId>
+        <version>${sonar.maven.version}</version>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

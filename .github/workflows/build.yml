@@ -1,0 +1,89 @@
+name: CI + SonarCloud + PR Comments
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    types: [ opened, synchronize, reopened ]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Cache SonarCloud packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Spotless (formatting check)
+        run: mvn -B spotless:check
+
+      - name: Build + tests + checks (verify)
+        run: mvn -B clean verify
+
+      # --- PR review comments: Checkstyle ---
+      - name: PR comments (Checkstyle)
+        if: always()
+        uses: dbelyaev/action-checkstyle@v2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          checkstyle_config: checkstyle.xml
+          workdir: .
+          reporter: github-pr-review
+
+      # --- PR review comments: SpotBugs ---
+      - name: Install reviewdog (pinned)
+        if: always()
+        run: |
+          curl -sfL https://raw.githubusercontent.com/reviewdog/reviewdog/master/install.sh | sh -s -- -b ./bin v0.20.3
+          ./bin/reviewdog -version
+
+      - name: Convert SpotBugs XML to rdjson (only if report exists)
+        if: always()
+        run: |
+          if [ -f target/spotbugsXml.xml ]; then
+            python3 .github/scripts/spotbugs_to_rdjson.py target/spotbugsXml.xml > target/spotbugs-rdjson.json
+          else
+            echo "SpotBugs XML not found; skipping conversion."
+          fi
+
+      - name: PR comments (SpotBugs)
+        if: always()
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f target/spotbugs-rdjson.json ]; then
+            ./bin/reviewdog \
+              -f=rdjson \
+              -name="spotbugs" \
+              -reporter=github-pr-review \
+              -fail-level=any \
+              < target/spotbugs-rdjson.json
+          else
+            echo "SpotBugs rdjson not found; skipping reviewdog."
+          fi
+
+      - name: SonarCloud Scan
+        if: always()
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: mvn -B sonar:sonar
+
